@@ -1,3 +1,4 @@
+update scripts set content = $SCRIPT$
 #!/bin/bash
 set -e
 
@@ -6,47 +7,36 @@ source /venv/main/bin/activate
 WORKSPACE=${WORKSPACE:-/workspace}
 COMFYUI_DIR=${WORKSPACE}/ComfyUI
 
-echo "=== Vast.ai ComfyUI provisioning ==="
+echo "=== HEAVEN MODE — Starting ==="
 
-# ─────────────────────────────────────────────
-# 1. Clone ComfyUI
-# ─────────────────────────────────────────────
 if [[ ! -d "${COMFYUI_DIR}" ]]; then
-    echo "Cloning ComfyUI..."
     git clone https://github.com/comfyanonymous/ComfyUI.git "${COMFYUI_DIR}"
 fi
 
 cd "${COMFYUI_DIR}"
 
-# ─────────────────────────────────────────────
-# 2. Install base requirements
-# ─────────────────────────────────────────────
 if [[ -f requirements.txt ]]; then
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt > /dev/null 2>&1
 fi
 
-# ─────────────────────────────────────────────
-# 3. CONFIG
-# ─────────────────────────────────────────────
 NODES=(
     "https://github.com/ltdrdata/ComfyUI-Manager"
     "https://github.com/kijai/ComfyUI-WanVideoWrapper"
-    "https://github.com/rishhhta/secretnodes"
     "https://github.com/rgthree/rgthree-comfy"
     "https://github.com/kijai/ComfyUI-KJNodes"
     "https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite"
     "https://github.com/kijai/ComfyUI-WanAnimatePreprocess"
     "https://github.com/Fannovel16/comfyui_controlnet_aux"
     "https://github.com/GACLove/ComfyUI-VFI"
-    "https://github.com/rishhhta/heven4"
-)
-
-WAN_JSON_MODELS=(
-    "https://huggingface.co/diego97martinez/video_baile_stady_dancer/resolve/main/WAN2-1-SteadyDancer-FP8.json"
+    "https://github.com/yoyodontsnitch777/node"
 )
 
 WAN_FP8_MODELS=(
     "https://huggingface.co/Kijai/WanVideo_comfy_fp8_scaled/resolve/main/SteadyDancer/Wan21_SteadyDancer_fp8_e4m3fn_scaled_KJ.safetensors"
+)
+
+WAN_JSON_MODELS=(
+    "https://huggingface.co/diego97martinez/video_baile_stady_dancer/resolve/main/WAN2-1-SteadyDancer-FP8.json"
 )
 
 LORA_MODELS=(
@@ -98,55 +88,40 @@ DETECTION_MODELS=(
     "https://huggingface.co/Kijai/vitpose_comfy/resolve/main/onnx/vitpose_h_wholebody_model.onnx"
     "https://huggingface.co/Kijai/vitpose_comfy/resolve/main/onnx/vitpose_h_wholebody_data.bin"
 )
-# ─────────────────────────────────────────────
-# 4. FUNCTIONS
-# ─────────────────────────────────────────────
+
+CONTROLNET_MODELS=(
+    "https://huggingface.co/Kijai/WanVideo_comfy/resolve/main/Wan21_Uni3C_controlnet_fp16.safetensors"
+)
+
 download_files() {
     local dir="$1"
     shift
     mkdir -p "$dir"
-
     for url in "$@"; do
-        echo "Downloading: $url"
         if [[ -n "$HF_TOKEN" && "$url" =~ huggingface.co ]]; then
-            wget --header="Authorization: Bearer $HF_TOKEN" \
-                 -nc --content-disposition -P "$dir" "$url"
+            wget --header="Authorization: Bearer $HF_TOKEN" -nc --content-disposition -P "$dir" "$url" > /dev/null 2>&1
         else
-            wget -nc --content-disposition -P "$dir" "$url"
+            wget -nc --content-disposition -P "$dir" "$url" > /dev/null 2>&1
         fi
     done
 }
 
-# ─────────────────────────────────────────────
-# 5. Custom nodes
-# ─────────────────────────────────────────────
 mkdir -p custom_nodes
-
 for repo in "${NODES[@]}"; do
     dir="${repo##*/}"
     path="custom_nodes/${dir}"
-    requirements="${path}/requirements.txt"
-
     if [[ -d "$path" ]]; then
-        echo "Updating node: $dir"
-        (cd "$path" && git pull)
+        (cd "$path" && git pull) > /dev/null 2>&1
     else
-        echo "Cloning node: $dir"
-        git clone "$repo" "$path" --recursive
+        git clone "$repo" "$path" --recursive > /dev/null 2>&1
     fi
-
-    [[ -f "$requirements" ]] && pip install --no-cache-dir -r "$requirements"
+    [[ -f "${path}/requirements.txt" ]] && pip install --no-cache-dir -r "${path}/requirements.txt" > /dev/null 2>&1
 done
 
-# ─────────────────────────────────────────────
-# 6. Download models (ПРАВИЛЬНЫЕ ПУТИ)
-# ─────────────────────────────────────────────
-
 mkdir -p models/detection
-
+mkdir -p models/controlnet
 download_files "models/diffusion_models" "${WAN_JSON_MODELS[@]}"
 download_files "models/diffusion_models" "${WAN_FP8_MODELS[@]}"
-
 download_files "models/loras" "${LORA_MODELS[@]}"
 download_files "models/vae" "${VAE_MODELS[@]}"
 download_files "models/clip_vision" "${CLIP_VISION_MODELS[@]}"
@@ -158,9 +133,21 @@ download_files "models/text_encoders" "${TEXT_ENCODER_FP8[@]}"
 download_files "models/vae" "${VAE_MODELS_NEW[@]}"
 download_files "models/clip_vision" "${CLIP_VISION_NEW[@]}"
 download_files "models/detection" "${DETECTION_MODELS[@]}"
+download_files "models/controlnet" "${CONTROLNET_MODELS[@]}"
 
-# ─────────────────────────────────────────────
-# 7. Launch
-# ─────────────────────────────────────────────
+# Rename models
+mv -f "models/diffusion_models/Wan21_SteadyDancer_fp8_e4m3fn_scaled_KJ.safetensors" "models/diffusion_models/sd_dance.safetensors" 2>/dev/null || true
+mv -f "models/diffusion_models/Wan2_2-Animate-14B_fp8_scaled_e4m3fn_KJ_v2.safetensors" "models/diffusion_models/animate.safetensors" 2>/dev/null || true
+mv -f "models/loras/lightx2v_I2V_14B_480p_cfg_step_distill_rank64_bf16.safetensors" "models/loras/lx2v_r64.safetensors" 2>/dev/null || true
+mv -f "models/loras/lightx2v_I2V_14B_480p_cfg_step_distill_rank256_bf16.safetensors" "models/loras/lx2v_r256.safetensors" 2>/dev/null || true
+mv -f "models/loras/wan2.2_i2v_lightx2v_4steps_lora_v1_high_noise.safetensors" "models/loras/lx2v_hn.safetensors" 2>/dev/null || true
+mv -f "models/loras/Wan2.2-Fun-A14B-InP-low-noise-HPS2.1.safetensors" "models/loras/fun_ln.safetensors" 2>/dev/null || true
+mv -f "models/loras/Wan21_PusaV1_LoRA_14B_rank512_bf16.safetensors" "models/loras/wanPus.safetensors" 2>/dev/null || true
+
 echo "=== Starting ComfyUI ==="
+
 python main.py --listen 0.0.0.0 --port 8188
+$SCRIPT$
+where name = 'heaven_mode';
+
+update scripts set content = replace(content, E'\r\n', E'\n') where name = 'heaven_mode';
