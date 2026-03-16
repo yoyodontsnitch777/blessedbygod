@@ -16,7 +16,7 @@ fi
 cd "${COMFYUI_DIR}"
 
 if [[ -f requirements.txt ]]; then
-    pip install --no-cache-dir -r requirements.txt > /dev/null 2>&1
+    pip install --no-cache-dir -r requirements.txt
 fi
 
 NODES=(
@@ -99,9 +99,9 @@ download_files() {
     mkdir -p "$dir"
     for url in "$@"; do
         if [[ -n "$HF_TOKEN" && "$url" =~ huggingface.co ]]; then
-            wget --header="Authorization: Bearer $HF_TOKEN" -nc --content-disposition -P "$dir" "$url" > /dev/null 2>&1
+            wget --header="Authorization: Bearer $HF_TOKEN" -nc --content-disposition -P "$dir" "$url"
         else
-            wget -nc --content-disposition -P "$dir" "$url" > /dev/null 2>&1
+            wget -nc --content-disposition -P "$dir" "$url"
         fi
     done
 }
@@ -111,11 +111,11 @@ for repo in "${NODES[@]}"; do
     dir="${repo##*/}"
     path="custom_nodes/${dir}"
     if [[ -d "$path" ]]; then
-        (cd "$path" && git pull) > /dev/null 2>&1
+        (cd "$path" && git pull)
     else
-        git clone "$repo" "$path" --recursive > /dev/null 2>&1
+        git clone "$repo" "$path" --recursive
     fi
-    [[ -f "${path}/requirements.txt" ]] && pip install --no-cache-dir -r "${path}/requirements.txt" > /dev/null 2>&1
+    [[ -f "${path}/requirements.txt" ]] && pip install --no-cache-dir -r "${path}/requirements.txt"
 done
 
 mkdir -p models/detection
